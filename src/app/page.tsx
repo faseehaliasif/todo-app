@@ -6,6 +6,6 @@ export default function Home() {
   <h1 className="text-3xl font-bold underline text-pink-300">
       Hello world!
     </h1>
-    <Button variant="destructive">Shad Button</Button>
+    <Button variant="outline">ShadButton</Button>
   </div>
 }
