@@ -35,7 +35,7 @@ export const useTodos = () => {
 
   // Update todo
   const updateTodo = useMutation({
-    mutationFn: async ({ id, title }: { id: string; title: string }) => {
+    mutationFn: async ({ id, title,completed }: { id: string; title: string,completed:boolean }) => {
       await axios.put(`/api/todos/${id}`, { title });
     },
     onSuccess: () => {

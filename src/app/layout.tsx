@@ -1,16 +1,12 @@
-"use client";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useState } from "react";
-import "./globals.css"
+import "./globals.css"; // Make sure this is in `layout.tsx`
+import { Providers } from "@/components/providers";  
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const [queryClient] = useState(() => new QueryClient());
-
   return (
-    <QueryClientProvider client={queryClient}>
-      <html lang="en">
-        <body>{children}</body>
-      </html>
-    </QueryClientProvider>
+    <html lang="en">
+      <body className="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+        <Providers>{children}</Providers>
+      </body>
+    </html>
   );
 }

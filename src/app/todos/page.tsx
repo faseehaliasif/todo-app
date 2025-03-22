@@ -4,110 +4,97 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import Model from "@/components/Model";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useTheme } from "next-themes";
+import { toast } from "sonner";
 
-// ✅ Define Todo Type
 type Todo = {
   id: string;
   title: string;
-  createdAt?: string;
   completed: boolean;
+  createdAt?: string;
 };
 
 export default function TodosPage() {
   const { todos, isLoading, addTodo, deleteTodo, updateTodo } = useTodos();
   const [newTitle, setNewTitle] = useState<string>("");
-  const [open, setOpen] = useState<boolean>(false);
-  const [editTodo, setEditTodo] = useState<Todo | null>(null);
-  const [currentPage, setCurrentPage] = useState<number>(1);
-  const [todosPerPage, setTodosPerPage] = useState<number>(5);
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const [sortBy, setSortBy] = useState<"title" | "createdAt" | "completed">("createdAt");
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [selectedTodos, setSelectedTodos] = useState<Set<string>>(new Set());
-  const [filterStatus, setFilterStatus] = useState<"all" | "completed" | "pending">("all");
+  const [editTodoId, setEditTodoId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState<string>("");
+  const { theme, setTheme } = useTheme();
+  const [deletedTodo, setDeletedTodo] = useState<Todo | null>(null);
 
   if (isLoading) return <p className="text-center text-gray-500">Loading Todos...</p>;
 
-  // 🔍 Filter Todos Based on Search Query & Status
-  const filteredTodos = todos
-    .filter((todo:Todo) => todo.title.toLowerCase().includes(searchQuery.toLowerCase()))
-    .filter((todo:Todo) => {
-      if (filterStatus === "completed") return todo.completed;
-      if (filterStatus === "pending") return !todo.completed;
-      return true;
-    });
+  // ✅ Handle Theme Toggle Fix
+  const toggleTheme = () => setTheme(theme === "dark" ? "light" : "dark");
 
-  // 🔄 Sorting Function
-  const sortedTodos = [...filteredTodos].sort((a, b) => {
-    if (sortBy === "title") {
-      return sortOrder === "asc" ? a.title.localeCompare(b.title) : b.title.localeCompare(a.title);
-    } else if (sortBy === "createdAt") {
-      return sortOrder === "asc"
-        ? new Date(a.createdAt || "").getTime() - new Date(b.createdAt || "").getTime()
-        : new Date(b.createdAt || "").getTime() - new Date(a.createdAt || "").getTime();
-    } else {
-      return sortOrder === "asc" ? Number(a.completed) - Number(b.completed) : Number(b.completed) - Number(a.completed);
-    }
-  });
-
-  // 📌 Pagination Logic
-  const totalPages = Math.ceil(sortedTodos.length / todosPerPage);
-  const paginatedTodos = sortedTodos.slice((currentPage - 1) * todosPerPage, currentPage * todosPerPage);
-
-  // 🔄 Handle Sorting
-  const handleSort = (field: "title" | "createdAt" | "completed") => {
-    if (sortBy === field) {
-      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
-    } else {
-      setSortBy(field);
-      setSortOrder("asc");
-    }
-  };
-
-  // ✅ Handle Select Todo for Bulk Actions
-  const toggleTodoSelection = (id: string) => {
-    setSelectedTodos((prev) => {
-      const newSet = new Set(prev);
-      newSet.has(id) ? newSet.delete(id) : newSet.add(id);
-      return newSet;
+  // ✅ Handle Bulk Complete
+  const handleMarkAllCompleted = () => {
+    todos.forEach((todo: Todo) => {
+      if (!todo.completed) updateTodo.mutate({ ...todo, completed: true });
     });
   };
 
-  // ✅ Handle Bulk Delete
+  // ✅ Handle Bulk Delete Fix
   const handleBulkDelete = () => {
-    selectedTodos.forEach((id) => deleteTodo.mutate(id));
+    selectedTodos.forEach((id) => {
+      const todoToDelete = todos.find((t: Todo) => t.id === id);
+      if (todoToDelete) setDeletedTodo(todoToDelete);
+      deleteTodo.mutate(id);
+    });
+
     setSelectedTodos(new Set());
+
+    toast("Todos deleted!", {
+      action: {
+        label: "Undo",
+        onClick: handleUndoDelete,
+      },
+    });
+  };
+
+  // ✅ Handle Undo Delete
+  const handleUndoDelete = () => {
+    if (deletedTodo) {
+      addTodo.mutate(deletedTodo.title);
+      setDeletedTodo(null);
+    }
+  };
+
+  // ✅ Handle Inline Editing
+  const handleSaveEdit = (id: string) => {
+    if (editTitle.trim()) {
+      updateTodo.mutate({ id, title: editTitle, completed: todos.completed });
+      setEditTodoId(null);
+      setEditTitle("");
+    }
   };
 
   return (
     <div className="container mx-auto p-6">
       <h1 className="text-3xl font-bold mb-6 text-center">📝 My Todo List</h1>
 
-      {/* Add Todo & Search */}
-      <div className="flex flex-wrap gap-3 mb-4">
-        <Input className="flex-1" placeholder="New todo..." value={newTitle} onChange={(e) => setNewTitle(e.target.value)} />
-        <Button onClick={() => newTitle.trim() && addTodo.mutate(newTitle) && setNewTitle("")}>Add</Button>
-        <Input className="w-64 border px-3 py-2 rounded-md" placeholder="🔍 Search Todos..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+      {/* ✅ Fixed Theme Toggle */}
+      <div className="flex justify-end mb-3">
+        <Button onClick={toggleTheme}>
+          {theme === "dark" ? "☀️ Light Mode" : "🌙 Dark Mode"}
+        </Button>
       </div>
 
-      {/* Filter & Bulk Delete */}
-      <div className="flex justify-between items-center mb-4">
-        {/* Filter by Status */}
-        <div>
-          <select
-            className="border rounded-md px-2 py-1 text-gray-700"
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value as "all" | "completed" | "pending")}
-          >
-            <option value="all">All</option>
-            <option value="completed">Completed</option>
-            <option value="pending">Pending</option>
-          </select>
-        </div>
+      {/* ✅ Add Todo & Search */}
+      <div className="flex gap-3 mb-4">
+        <Input placeholder="New todo..." value={newTitle} onChange={(e) => setNewTitle(e.target.value)} />
+        <Button onClick={() => newTitle.trim() && addTodo.mutate(newTitle) && setNewTitle("")}>Add</Button>
+        <Input placeholder="🔍 Search Todos..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+      </div>
 
-        {/* Bulk Delete Button */}
+      {/* ✅ Bulk Actions Fix */}
+      <div className="flex justify-between items-center mb-4">
+        <Button variant="outline" onClick={handleMarkAllCompleted}>
+          ✅ Mark All Completed
+        </Button>
         {selectedTodos.size > 0 && (
           <Button variant="destructive" onClick={handleBulkDelete}>
             Delete {selectedTodos.size} Todos
@@ -115,55 +102,58 @@ export default function TodosPage() {
         )}
       </div>
 
-      {/* Dashboard Table */}
-      <div className="rounded-lg border bg-white shadow">
+      {/* ✅ Todos Table */}
+      <div className="rounded-lg border bg-white shadow dark:bg-gray-800">
         <Table>
           <TableHeader>
-            <TableRow className="bg-gray-100">
+            <TableRow className="bg-gray-100 dark:bg-gray-700">
               <TableHead className="w-10 text-center">
-                <Checkbox onCheckedChange={(checked) => setSelectedTodos(checked ? new Set(filteredTodos.map((t:Todo) => t.id)) : new Set())} />
+                <Checkbox
+                  onCheckedChange={(checked) => setSelectedTodos(checked ? new Set(todos.map((t:Todo) => t.id)) : new Set())}
+                />
               </TableHead>
               <TableHead className="w-10 text-center">#</TableHead>
-              <TableHead className="cursor-pointer" onClick={() => handleSort("title")}>
-                Task {sortBy === "title" && (sortOrder === "asc" ? "⬆️" : "⬇️")}
-              </TableHead>
-              <TableHead className="cursor-pointer" onClick={() => handleSort("createdAt")}>
-                Created At {sortBy === "createdAt" && (sortOrder === "asc" ? "⬆️" : "⬇️")}
-              </TableHead>
-              <TableHead className="cursor-pointer" onClick={() => handleSort("completed")}>
-                Completed {sortBy === "completed" && (sortOrder === "asc" ? "⬆️" : "⬇️")}
-              </TableHead>
+              <TableHead>Task</TableHead>
+              <TableHead className="text-center">Completed</TableHead>
               <TableHead className="text-center">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {paginatedTodos.length > 0 ? (
-              paginatedTodos.map((todo, index) => (
-                <TableRow key={todo.id}>
-                  <TableCell className="text-center">
-                    <Checkbox checked={selectedTodos.has(todo.id)} onCheckedChange={() => toggleTodoSelection(todo.id)} />
-                  </TableCell>
-                  <TableCell className="text-center">{(currentPage - 1) * todosPerPage + index + 1}</TableCell>
-                  <TableCell>{todo.title}</TableCell>
-                  <TableCell>{todo.createdAt ? new Date(todo.createdAt).toLocaleDateString() : "N/A"}</TableCell>
-                  <TableCell>{todo.completed ? "✅" : "❌"}</TableCell>
-                  <TableCell className="flex justify-center gap-3">
-                    <Button variant="destructive" onClick={() => deleteTodo.mutate(todo.id)}>Delete</Button>
-                    <Button variant="outline" onClick={() => { setEditTodo(todo); setOpen(true); }}>Edit</Button>
-                  </TableCell>
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center text-gray-500 py-4">No Todos Found</TableCell>
+            {todos.map((todo:Todo, index:string) => (
+              <TableRow key={todo.id}>
+                <TableCell className="text-center">
+                  <Checkbox
+                    checked={selectedTodos.has(todo.id)}
+                    onCheckedChange={() => {
+                      setSelectedTodos((prev) => {
+                        const newSet = new Set(prev);
+                        if (newSet.has(todo.id)) newSet.delete(todo.id);
+                        else newSet.add(todo.id);
+                        return newSet;
+                      });
+                    }}
+                  />
+                </TableCell>
+                <TableCell className="text-center">{index + 1}</TableCell>
+                <TableCell>
+                  {editTodoId === todo.id ? (
+                    <Input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} onBlur={() => handleSaveEdit(todo.id)} />
+                  ) : (
+                    <span onDoubleClick={() => { setEditTodoId(todo.id); setEditTitle(todo.title); }}>{todo.title}</span>
+                  )}
+                </TableCell>
+                <TableCell className="text-center">
+                  <Checkbox checked={todo.completed} onCheckedChange={() => updateTodo.mutate({ ...todo, completed: !todo.completed })} />
+                </TableCell>
+                <TableCell className="flex justify-center gap-3">
+                  <Button variant="destructive" onClick={() => deleteTodo.mutate(todo.id)}>Delete</Button>
+                  <Button variant="outline" onClick={() => { setEditTodoId(todo.id); setEditTitle(todo.title); }}>Edit</Button>
+                </TableCell>
               </TableRow>
-            )}
+            ))}
           </TableBody>
         </Table>
       </div>
-
-      {/* Edit Modal */}
-      {open && editTodo && <Model setOpen={setOpen} editTodo={editTodo} updateTodo={updateTodo} />}
     </div>
   );
 }
